@@ -1,0 +1,32 @@
+[
+  {
+    "record_id": 139362,
+    "input_length": 5586,
+    "summary_length": 577,
+    "generated_summary": "\nPATIENT: 75.0-year-old F\n\nDATES: Admitted 2168-05-20, Discharged 2168-05-28\n\nADMISSION: Not documented\n\nHISTORY: Asthma, status post appendectomy,\nstatus post hysterectomy, status post tonsille...\n\nDIAGNOSIS: Not documented\n\nHOSPITAL COURSE: The patient was admitted to the \nService on  for initial medical management.\n\nLABS: Phosphate: 4.6 mg/dL (!);  Urea Nitrogen: 17 mg/dL;  Platele...\n\nMEDICATIONS: 1.  Potassium chloride 20 mEq p.o. q. 12 hours times ten days\n2.  Colace 100 mg p.o. b.i.d.\n3.\n\nFOLLOW-UP: Not documented\n\nSUMMARY: Managed surgically. Patient discharged.\n"
+  },
+  {
+    "record_id": 162688,
+    "input_length": 6196,
+    "summary_length": 676,
+    "generated_summary": "\nPATIENT: 60.0-year-old M\n\nDATES: Admitted 2159-08-24, Discharged 2159-09-01\n\nADMISSION: GERD like symtpoms- chest pressure after eating relived with...\n\nHISTORY: GERD, Barretts esophagus, sleep apnea-unable to tolerate bipap\nat home\n\nDIAGNOSIS: GERD, Barrett's Esophagus, coronary artery disease\n\nHOSPITAL COURSE: Mr. was taken to the operating room and underwent\ncoronary artery bypass graft x5 (left internal mam...\n\nLABS: Magnesium: 2.1 mg/dL;  Magnesium: 2.3 mg/dL;  Hemoglobin: 11...\n\nMEDICATIONS: 1. Aspirin 81 mg Tablet Sig: One (1) Tablet PO once a day.\n\nFOLLOW-UP: Home With Service\n\nSUMMARY: Primary issue: GERD. Managed surgically. Discharged home with follow-up.\n"
+  },
+  {
+    "record_id": 158314,
+    "input_length": 2676,
+    "summary_length": 741,
+    "generated_summary": "\nPATIENT: 76.0-year-old F\n\nDATES: Admitted 2113-04-21, Discharged 2113-04-22\n\nADMISSION: Recurrent chest pain\n\nHISTORY: CAD, s/p IMI and multiple stents\nCVA in  without residual deficits\nTIA in \nInsul...\n\nDIAGNOSIS: Coronary Artery Disease, s/p CABG\nPostop Atrial Fibrillation\nHistory of Myocardi...\n\nHOSPITAL COURSE: Mr.  was taken to the operating room and underwent\ncoronary artery bypass grafting x3(Left internal...\n\nLABS: Hemoglobin: 9.1 g/dL (!);  Base Excess: -2 mEq/L;  Alanine A...\n\nMEDICATIONS: 1. Amiodarone 200 mg Tablet Sig: Two (2) Tablet PO twice a day:\ntake 400mg (two 200mg tablets)  for...\n\nFOLLOW-UP: Home With Service\n\nSUMMARY: Primary issue: Coronary Artery Disease. Managed surgically. Discharged home with follow-up.\n"
+  },
+  {
+    "record_id": 146377,
+    "input_length": 12195,
+    "summary_length": 650,
+    "generated_summary": "\nPATIENT: 51.0-year-old F\n\nDATES: Admitted 2159-07-31, Discharged 2159-08-11\n\nADMISSION: Not documented\n\nHISTORY: 1.  Insulin dependent diabetes\nmellitus.  2.  Hypertension.  3.\n\nDIAGNOSIS: Not documented\n\nHOSPITAL COURSE: The patient was admitted to the cardiology\nservice.  She was started on aspirin, heparin drip and\nni...\n\nLABS: Hemoglobin: 11.0 g/dL (!);  Hemoglobin: 12.3 g/dL;  Phosphat...\n\nMEDICATIONS: Lopressor 25 mg p.o.b.i.d.\nLasix 20 mg p.o.q.d. times five days.\nPotassium chloride 20 mEq p.o.q.d.\n\nFOLLOW-UP: The patient will follow up with Dr.  in three\nweeks and with...\n\nSUMMARY: Managed surgically. Appropriate follow-up arranged.\n"
+  },
+  {
+    "record_id": 143834,
+    "input_length": 9190,
+    "summary_length": 640,
+    "generated_summary": "\nPATIENT: 66.0-year-old M\n\nDATES: Admitted 2171-07-19, Discharged 2171-07-27\n\nADMISSION: fever, dehydration\n\nHISTORY: 1.\tmultiple myeloma.  Not yet ready for hospice but has\npreferred supportive man...\n\nDIAGNOSIS: respiratory failure secondary to pneumonia secondary to multiple\nmyeloma\n\nHOSPITAL COURSE: Pt was treated in the ICU for difficulty maintaining adequate\noxygen saturation.\n\nLABS: Specific Gravity: 1.017  ;  MCHC: 35.6 % (!);  RDW: 12.8 %\n\nMEDICATIONS: Not documented\n\nFOLLOW-UP: Home\n\nSUMMARY: Primary issue: respiratory failure secondary to pneumonia seconda.... Clinical management provided. Discharged home with follow-up.\n"
+  }
+]

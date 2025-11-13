@@ -1,0 +1,570 @@
+"""Medical Summary Template and Data Preparation for Model Training
+Author: Lab Lens Team
+Description: Prepares MIMIC-III discharge summaries for BioBART fine-tuning
+             Creates structured summaries from extracted clinical sections
+             
+This script performs the following:
+1. Loads processed discharge summaries from data pipeline
+2. Creates structured 9-section summaries (max 700 chars) using template
+3. Splits data into train (70%), validation (15%), test (15%)
+4. Saves datasets for model training and evaluation
+5. Generates sample summaries for quality review
+"""
+
+import pandas as pd
+import numpy as np
+import os
+import json
+from typing import Dict, Tuple
+from sklearn.model_selection import train_test_split
+
+
+# Define the structured summary template with 9 clinical sections
+# This template ensures consistent, comprehensive summaries under 700 characters
+# Template structure matches clinical documentation standards
+SUMMARY_TEMPLATE = """
+PATIENT: {age}-year-old {gender}
+
+DATES: Admitted {admission_date}, Discharged {discharge_date}
+
+ADMISSION: {chief_complaint}
+
+HISTORY: {medical_history}
+
+DIAGNOSIS: {diagnosis}
+
+HOSPITAL COURSE: {hospital_course}
+
+LABS: {lab_results}
+
+MEDICATIONS: {medications}
+
+FOLLOW-UP: {follow_up}
+"""
+
+# Maximum summary length constraint as per project requirements
+MAX_SUMMARY_LENGTH = 700
+
+
+def truncate_text(text: str, max_chars: int) -> str:
+    """
+    Truncate text to maximum characters while preserving sentence boundaries
+    This ensures summaries stay within length limits without cutting mid-sentence
+    Prioritizes ending at natural sentence breaks for readability
+    
+    Args:
+        text: Input text string to truncate
+        max_chars: Maximum allowed character count
+        
+    Returns:
+        Truncated text ending at sentence boundary when possible
+        Returns "Not documented" for None or empty input
+    
+    Example:
+        truncate_text("Patient stable. Follow-up needed. Continue meds.", 25)
+        Returns: "Patient stable."
+    """
+    # Handle None, NaN, or empty text gracefully
+    if not text or pd.isna(text):
+        return "Not documented"
+    
+    # Convert to string and remove leading/trailing whitespace
+    text = str(text).strip()
+    
+    # If text already fits within limit, return unchanged
+    if len(text) <= max_chars:
+        return text
+    
+    # Truncate to maximum allowed length
+    truncated = text[:max_chars]
+    
+    # Try to find the last sentence boundary for clean cutoff
+    # Check for period, exclamation mark, or question mark
+    last_period = max(
+        truncated.rfind('.'), 
+        truncated.rfind('!'), 
+        truncated.rfind('?')
+    )
+    
+    # If we found a sentence boundary in the last 30% of text, use it
+    # This ensures we keep most of the content while ending cleanly
+    if last_period > max_chars * 0.7:
+        return truncated[:last_period + 1]
+    else:
+        # No good sentence boundary found, truncate with ellipsis
+        return truncated.rstrip() + '...'
+
+
+def format_date(date_value) -> str:
+    """
+    Format date or datetime value to readable string format (YYYY-MM-DD)
+    Handles various date formats from MIMIC-III database
+    
+    Args:
+        date_value: Date value from DataFrame
+                   Can be datetime object, string, timestamp, or None
+        
+    Returns:
+        Formatted date string in YYYY-MM-DD format
+        Returns "Not documented" if date is missing or cannot be parsed
+    
+    Example:
+        format_date("2024-10-15 14:30:00") returns "2024-10-15"
+        format_date(None) returns "Not documented"
+    """
+    # Handle missing or NaN values
+    if pd.isna(date_value):
+        return 'Not documented'
+    
+    try:
+        # Attempt to parse as pandas datetime
+        parsed_date = pd.to_datetime(date_value)
+        # Format to standard YYYY-MM-DD format
+        return parsed_date.strftime('%Y-%m-%d')
+    except:
+        # If datetime parsing fails, try extracting date from string
+        date_str = str(date_value)
+        # Most datetime strings have YYYY-MM-DD as first 10 characters
+        if len(date_str) >= 10:
+            return date_str[:10]
+        else:
+            return 'Not documented'
+
+
+def create_structured_summary(row: pd.Series) -> str:
+    """
+    Create structured clinical summary from extracted sections
+    Combines all 9 template sections into a comprehensive summary
+    
+    This function:
+    1. Extracts demographics and dates
+    2. Extracts all clinical sections
+    3. Truncates each section to fit within character limits
+    4. Formats everything using the template
+    5. Ensures final summary is under 700 characters
+    
+    Args:
+        row: DataFrame row containing all clinical sections and demographics
+             Expected columns: age_at_admission, gender, admittime, dischtime,
+             chief_complaint, past_medical_history, discharge_diagnosis,
+             hospital_course, lab_summary, discharge_medications, follow_up
+        
+    Returns:
+        Formatted clinical summary string (maximum 700 characters)
+        
+    Example output:
+        "PATIENT: 67-year-old male
+         DATES: Admitted 2024-10-15, Discharged 2024-10-20
+         ADMISSION: Chest pain
+         ..."
+    """
+    # Extract patient demographics
+    age = row.get('age_at_admission', 'Unknown')
+    gender = row.get('gender', 'Unknown')
+    
+    # Extract and format admission and discharge dates
+    # Uses the format_date function to handle various date formats
+    admission_date = format_date(row.get('admittime'))
+    discharge_date = format_date(row.get('dischtime'))
+    
+    # Extract all clinical sections from preprocessing pipeline output
+    # These sections were extracted using regex patterns in preprocessing.py
+    chief_complaint = row.get('chief_complaint', 'Not documented')
+    medical_history = row.get('past_medical_history', 'Not documented')
+    diagnosis = row.get('discharge_diagnosis', 'Not documented')
+    hospital_course = row.get('hospital_course', 'Not documented')
+    medications = row.get('discharge_medications', 'Not documented')
+    follow_up = row.get('follow_up', 'Not documented')
+    
+    # Format lab results - keep only first 3 critical labs for conciseness
+    # Full lab results can be very long, so we prioritize the most important ones
+    lab_results = row.get('lab_summary', 'Not available')
+    if pd.notna(lab_results) and lab_results != 'Not available':
+        # Split by semicolon and take first 3 results
+        lab_parts = str(lab_results).split(';')[:3]
+        lab_results = '; '.join(lab_parts).strip()
+    
+    # Create summary by filling template with truncated sections
+    # Each section is truncated to a specific maximum length
+    # These limits are carefully chosen to total approximately 700 characters
+    summary = SUMMARY_TEMPLATE.format(
+        age=age,
+        gender=gender,
+        admission_date=admission_date,
+        discharge_date=discharge_date,
+        chief_complaint=truncate_text(chief_complaint, 80),    # 80 chars max
+        medical_history=truncate_text(medical_history, 100),   # 100 chars max
+        diagnosis=truncate_text(diagnosis, 100),               # 100 chars max
+        hospital_course=truncate_text(hospital_course, 120),   # 120 chars max
+        lab_results=truncate_text(lab_results, 80),            # 80 chars max
+        medications=truncate_text(medications, 120),           # 120 chars max
+        follow_up=truncate_text(follow_up, 70)                 # 70 chars max
+    )
+    
+    # Final safety check - ensure total summary is under 700 character limit
+    # This handles cases where template formatting adds extra characters
+    if len(summary) > MAX_SUMMARY_LENGTH:
+        summary = summary[:MAX_SUMMARY_LENGTH-3] + '...'
+    
+    return summary
+
+
+def prepare_summarization_dataset(input_file: str, output_dir: str) -> Dict[str, str]:
+    """
+    Prepare complete train/validation/test datasets for BioBART fine-tuning
+    
+    This function performs the complete data preparation pipeline:
+    1. Loads processed discharge summaries from data pipeline
+    2. Filters records with complete clinical information
+    3. Creates input-output pairs (full text -> structured summary)
+    4. Splits into train/validation/test sets with stratification
+    5. Saves both full and lightweight versions of datasets
+    6. Generates sample summaries for manual quality review
+    7. Computes and saves dataset statistics
+    
+    Args:
+        input_file: Path to processed discharge summaries CSV from data pipeline
+                   Expected location: data-pipeline/data/processed/processed_discharge_summaries.csv
+        output_dir: Directory to save all prepared datasets
+                   Will create: model-development/data/model_ready/
+        
+    Returns:
+        Dictionary mapping dataset types to their file paths
+        Contains paths for train, validation, test (full and light versions)
+    """
+    print("="*60)
+    print("DATA PREPARATION FOR BIOBART MODEL TRAINING")
+    print("="*60)
+    print(f"Loading data from: {input_file}")
+    
+    # Load processed data from data pipeline
+    # This data has already been cleaned, deduplicated, and feature-engineered
+    df = pd.read_csv(input_file)
+    print(f"Loaded {len(df)} total records from data pipeline")
+    print(f"Input data has {len(df.columns)} columns")
+    
+    # Filter to keep only records with sufficient information for summarization
+    # Requirements:
+    # - Non-empty clinical text (at least 100 characters)
+    # - Discharge diagnosis must be present (critical for summary)
+    # - Discharge medications must be present (critical for summary)
+    print("\nFiltering records with complete clinical information...")
+    print("Criteria:")
+    print("  - Discharge text length > 100 characters")
+    print("  - Discharge diagnosis present")
+    print("  - Discharge medications present")
+    
+    df_valid = df[
+        (df['cleaned_text'].notna()) & 
+        (df['cleaned_text'].str.len() > 100) &
+        (df['discharge_diagnosis'].notna()) &
+        (df['discharge_diagnosis'] != '') &
+        (df['discharge_medications'].notna()) &
+        (df['discharge_medications'] != '')
+    ].copy()
+    
+    print(f"\nFiltered to {len(df_valid)} records with complete information")
+    print(f"Removed {len(df) - len(df_valid)} incomplete records ({(len(df) - len(df_valid))/len(df)*100:.1f}%)")
+    
+    # Create input-output pairs for model training
+    # Input: Full discharge summary text (can be any length from 100 to 50,000+ characters)
+    # Output: Structured summary following template (maximum 700 characters)
+    print("\n" + "="*60)
+    print("CREATING INPUT-OUTPUT PAIRS")
+    print("="*60)
+    print("Input: Full discharge summary (variable length)")
+    print("Output: Structured 9-section summary (max 700 chars)")
+    
+    # Input is the full cleaned discharge text
+    # This can be any length - BioBART tokenizer will handle truncation to 512 tokens
+    df_valid['input_text'] = df_valid['cleaned_text']
+    
+    # Output is the structured summary created from our template
+    # This applies the template to each row and creates the target summary
+    print("\nGenerating structured summaries from template...")
+    df_valid['target_summary'] = df_valid.apply(create_structured_summary, axis=1)
+    print(f"Created {len(df_valid)} structured summaries")
+    
+    # Calculate text statistics for analysis and monitoring
+    # These metrics help understand the summarization task difficulty
+    df_valid['input_length'] = df_valid['input_text'].str.len()
+    df_valid['summary_length'] = df_valid['target_summary'].str.len()
+    df_valid['compression_ratio'] = df_valid['input_length'] / df_valid['summary_length']
+    
+    # Print comprehensive dataset statistics
+    print("\n" + "="*60)
+    print("DATASET STATISTICS")
+    print("="*60)
+    print(f"Total valid records: {len(df_valid)}")
+    
+    print(f"\nInput Text (Full Discharge Summaries):")
+    print(f"  Minimum length: {df_valid['input_length'].min():.0f} characters")
+    print(f"  Maximum length: {df_valid['input_length'].max():.0f} characters")
+    print(f"  Average length: {df_valid['input_length'].mean():.0f} characters")
+    print(f"  Median length: {df_valid['input_length'].median():.0f} characters")
+    
+    print(f"\nTarget Summaries (Structured 9-Section Format):")
+    print(f"  Minimum length: {df_valid['summary_length'].min():.0f} characters")
+    print(f"  Maximum length: {df_valid['summary_length'].max():.0f} characters")
+    print(f"  Average length: {df_valid['summary_length'].mean():.0f} characters")
+    print(f"  Target maximum: {MAX_SUMMARY_LENGTH} characters")
+    
+    print(f"\nCompression Statistics:")
+    print(f"  Average compression ratio: {df_valid['compression_ratio'].mean():.1f}x")
+    print(f"  This means input is {df_valid['compression_ratio'].mean():.1f} times longer than summary")
+    print(f"  Model must learn to compress information by {df_valid['compression_ratio'].mean():.1f}x")
+    
+    # Split dataset into train, validation, and test sets
+    # Standard split: 70% train, 15% validation, 15% test
+    # Stratify by age_group to ensure balanced demographic representation
+    print("\n" + "="*60)
+    print("SPLITTING DATASET INTO TRAIN/VALIDATION/TEST")
+    print("="*60)
+    print("Split ratio: 70% train, 15% validation, 15% test")
+    print("Stratification: By age_group to ensure balanced demographics")
+    
+    # First split: Separate test set (15% of total data)
+    # Test set will be used for final evaluation only, never during training
+    train_val_df, test_df = train_test_split(
+        df_valid, 
+        test_size=0.15,
+        random_state=42,
+        stratify=df_valid['age_group'] if 'age_group' in df_valid.columns else None
+    )
+    
+    # Second split: Split remaining 85% into train (70%) and validation (15%)
+    # Validation set monitors training progress and prevents overfitting
+    train_df, val_df = train_test_split(
+        train_val_df,
+        test_size=0.176,  # 15/(70+15) = 0.176 to get exactly 15% of original dataset
+        random_state=42,
+        stratify=train_val_df['age_group'] if 'age_group' in train_val_df.columns else None
+    )
+    
+    # Print split statistics
+    print(f"\nDataset split completed:")
+    print(f"  Train set: {len(train_df)} records ({len(train_df)/len(df_valid)*100:.1f}%)")
+    print(f"  Validation set: {len(val_df)} records ({len(val_df)/len(df_valid)*100:.1f}%)")
+    print(f"  Test set: {len(test_df)} records ({len(test_df)/len(df_valid)*100:.1f}%)")
+    
+    # Verify split adds up to total
+    assert len(train_df) + len(val_df) + len(test_df) == len(df_valid), "Split error: counts don't match"
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    print(f"\nCreated output directory: {output_dir}")
+    
+    # Save complete datasets with ALL columns (full feature set)
+    # Full datasets contain all 43+ features from preprocessing
+    # Used for: bias detection, performance analysis, debugging
+    print("\n" + "="*60)
+    print("SAVING DATASETS")
+    print("="*60)
+    print("Saving full datasets with all 43+ features...")
+    
+    train_file = os.path.join(output_dir, 'train.csv')
+    val_file = os.path.join(output_dir, 'validation.csv')
+    test_file = os.path.join(output_dir, 'test.csv')
+    
+    train_df.to_csv(train_file, index=False)
+    val_df.to_csv(val_file, index=False)
+    test_df.to_csv(test_file, index=False)
+    
+    print(f"  Saved: {train_file} ({os.path.getsize(train_file)/1024/1024:.2f} MB)")
+    print(f"  Saved: {val_file} ({os.path.getsize(val_file)/1024/1024:.2f} MB)")
+    print(f"  Saved: {test_file} ({os.path.getsize(test_file)/1024/1024:.2f} MB)")
+    
+    # Save lightweight versions with only essential columns
+    # Lightweight datasets contain only columns needed for model training
+    # Columns: hadm_id, input_text, target_summary, age_group, ethnicity_clean, gender
+    # Used for: faster model training with reduced memory footprint
+    print("\nSaving lightweight datasets for optional faster training...")
+    
+    essential_cols = ['hadm_id', 'input_text', 'target_summary', 'age_group', 'ethnicity_clean', 'gender']
+    
+    train_light = train_df[essential_cols]
+    val_light = val_df[essential_cols]
+    test_light = test_df[essential_cols]
+    
+    train_light.to_csv(os.path.join(output_dir, 'train_light.csv'), index=False)
+    val_light.to_csv(os.path.join(output_dir, 'validation_light.csv'), index=False)
+    test_light.to_csv(os.path.join(output_dir, 'test_light.csv'), index=False)
+    
+    print("  Saved lightweight versions (6 columns only)")
+    
+    # Generate sample summaries for manual quality review
+    # These samples allow verification of template quality before starting training
+    # Reviewing samples helps catch issues early (missing data, formatting problems, etc.)
+    print("\n" + "="*60)
+    print("GENERATING SAMPLE SUMMARIES FOR REVIEW")
+    print("="*60)
+    print("Creating 5 sample summaries for manual quality verification...")
+    
+    sample_summaries = []
+    
+    for idx in range(min(5, len(df_valid))):
+        row = df_valid.iloc[idx]
+        sample_summaries.append({
+            'record_id': int(row['hadm_id']),
+            'patient_demographics': f"{row.get('age_at_admission', 'N/A')} yrs, {row.get('gender', 'N/A')}",
+            'input_length': int(row['input_length']),
+            'summary_length': int(row['summary_length']),
+            'compression_ratio': f"{row['compression_ratio']:.1f}x",
+            'input_preview': str(row['input_text'])[:300] + '...',
+            'generated_summary': str(row['target_summary'])
+        })
+    
+    sample_file = os.path.join(output_dir, 'sample_summaries.json')
+    with open(sample_file, 'w') as f:
+        json.dump(sample_summaries, f, indent=2)
+    
+    print(f"Saved {len(sample_summaries)} sample summaries to: {sample_file}")
+    print("IMPORTANT: Review these samples before training to verify quality")
+    
+    # Save comprehensive dataset statistics for documentation and monitoring
+    # Statistics help understand data characteristics and track quality over time
+    print("\nComputing dataset statistics...")
+    
+    stats = {
+        'generation_timestamp': str(pd.Timestamp.now()),
+        'dataset_info': {
+            'total_records_processed': len(df),
+            'valid_records_used': len(df_valid),
+            'train_records': len(train_df),
+            'validation_records': len(val_df),
+            'test_records': len(test_df),
+            'records_filtered_out': len(df) - len(df_valid),
+            'filter_criteria': 'text_length > 100, diagnosis present, medications present'
+        },
+        'text_statistics': {
+            'input_min_length': int(df_valid['input_length'].min()),
+            'input_max_length': int(df_valid['input_length'].max()),
+            'input_avg_length': float(df_valid['input_length'].mean()),
+            'input_median_length': float(df_valid['input_length'].median()),
+            'summary_min_length': int(df_valid['summary_length'].min()),
+            'summary_max_length': int(df_valid['summary_length'].max()),
+            'summary_avg_length': float(df_valid['summary_length'].mean()),
+            'summary_median_length': float(df_valid['summary_length'].median()),
+            'avg_compression_ratio': float(df_valid['compression_ratio'].mean()),
+            'max_summary_length_limit': MAX_SUMMARY_LENGTH
+        },
+        'demographic_distribution': {}
+    }
+    
+    # Add demographic distributions across splits for bias monitoring
+    # This ensures balanced representation of different patient groups
+    for demo_col in ['age_group', 'gender', 'ethnicity_clean']:
+        if demo_col in df_valid.columns:
+            distribution = df_valid[demo_col].value_counts().to_dict()
+            # Convert all values to serializable types for JSON
+            stats['demographic_distribution'][demo_col] = {
+                str(k): int(v) for k, v in distribution.items()
+            }
+    
+    stats_file = os.path.join(output_dir, 'dataset_statistics.json')
+    with open(stats_file, 'w') as f:
+        json.dump(stats, f, indent=2)
+    
+    print(f"Saved comprehensive statistics to: {stats_file}")
+    
+    # Final summary of data preparation
+    print("\n" + "="*60)
+    print("DATA PREPARATION COMPLETE")
+    print("="*60)
+    print(f"Output directory: {output_dir}")
+    print(f"Generated 6 CSV files (3 full + 3 light versions)")
+    print(f"Generated 1 sample file for review")
+    print(f"Generated 1 statistics file for documentation")
+    print(f"\nDatasets are ready for BioBART fine-tuning")
+    print("="*60)
+    
+    # Return dictionary with all file paths for downstream use
+    return {
+        'train': train_file,
+        'validation': val_file,
+        'test': test_file,
+        'train_light': os.path.join(output_dir, 'train_light.csv'),
+        'validation_light': os.path.join(output_dir, 'validation_light.csv'),
+        'test_light': os.path.join(output_dir, 'test_light.csv'),
+        'statistics': stats_file,
+        'samples': sample_file
+    }
+
+
+if __name__ == "__main__":
+    import sys
+    import argparse
+    
+    # Command line argument parser for flexible script execution
+    # Allows customization of input and output paths
+    parser = argparse.ArgumentParser(
+        description='Prepare MIMIC-III discharge summaries for BioBART summarization model training',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Use default paths (recommended)
+  python prepare_model_data.py
+  
+  # Use custom input file
+  python prepare_model_data.py --input path/to/processed_data.csv
+  
+  # Use custom output directory
+  python prepare_model_data.py --output path/to/output/
+        """
+    )
+    
+    parser.add_argument(
+        '--input', 
+        type=str, 
+        default='data-pipeline/data/processed/processed_discharge_summaries.csv',
+        help='Path to processed discharge summaries CSV from data pipeline (default: %(default)s)'
+    )
+    
+    parser.add_argument(
+        '--output', 
+        type=str, 
+        default='model-development/data/model_ready',
+        help='Output directory for prepared train/validation/test datasets (default: %(default)s)'
+    )
+    
+    args = parser.parse_args()
+    
+    # Verify input file exists before processing
+    if not os.path.exists(args.input):
+        print(f"ERROR: Input file not found: {args.input}")
+        print("Please run the data pipeline first to generate processed data")
+        sys.exit(1)
+    
+    # Prepare datasets for model training
+    print(f"Starting data preparation...")
+    print(f"Input: {args.input}")
+    print(f"Output: {args.output}\n")
+    
+    file_paths = prepare_summarization_dataset(args.input, args.output)
+    
+    # Print organized summary of all generated files
+    print("\n" + "="*60)
+    print("GENERATED FILES SUMMARY")
+    print("="*60)
+    print("\nFull Datasets (with all 43+ features for bias analysis):")
+    print(f"  Training: {file_paths['train']}")
+    print(f"  Validation: {file_paths['validation']}")
+    print(f"  Test: {file_paths['test']}")
+    
+    print("\nLightweight Datasets (6 columns for faster training):")
+    print(f"  Training: {file_paths['train_light']}")
+    print(f"  Validation: {file_paths['validation_light']}")
+    print(f"  Test: {file_paths['test_light']}")
+    
+    print("\nAnalysis Files:")
+    print(f"  Dataset statistics: {file_paths['statistics']}")
+    print(f"  Sample summaries: {file_paths['samples']}")
+    
+    print("\n" + "="*60)
+    print("NEXT STEPS")
+    print("="*60)
+    print("1. Review sample summaries in: " + file_paths['samples'])
+    print("2. Check dataset statistics in: " + file_paths['statistics'])
+    print("3. If summaries look good, proceed to model training")
+    print("4. Run: python model-development/scripts/train_biobart.py")
+    print("="*60)

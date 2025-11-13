@@ -18,7 +18,7 @@ default_args = {
     'owner': 'lab-lens-team',
     'depends_on_past': False,
     'email': ['team@lablens.com'],
-    'email_on_failure': False,
+    'email_on_failure': True,
     'email_on_retry': False,
     'retries': 1,
     'retry_delay': timedelta(minutes=2),

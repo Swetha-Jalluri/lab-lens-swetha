@@ -1,0 +1,112 @@
+{
+  "model_config": {
+    "model_name": "GanjinZero/biobart-v2-base",
+    "model_type": "biobart",
+    "task": "summarization",
+    "input_data_path": "data-pipeline/data/processed/processed_discharge_summaries.csv",
+    "output_model_path": "model-development/models/biobart_mimic_summarization",
+    "logs_path": "model-development/logs",
+    "mlflow_tracking_uri": "model-development/logs/mlruns",
+    "experiment_name": "biobart_mimic_summarization"
+  },
+  "data_config": {
+    "prepared_data_dir": "model-development/data/model_ready",
+    "train_split": 0.70,
+    "validation_split": 0.15,
+    "test_split": 0.15,
+    "random_seed": 42,
+    "min_input_length": 100,
+    "max_input_length": 512,
+    "max_target_length": 150,
+    "stratify_by": "age_group",
+    "filter_incomplete_records": true
+  },
+  "training_config": {
+    "num_epochs": 5,
+    "batch_size": 8,
+    "learning_rate": 2e-5,
+    "weight_decay": 0.01,
+    "warmup_steps": 500,
+    "gradient_accumulation_steps": 2,
+    "max_grad_norm": 1.0,
+    "fp16": false,
+    "evaluation_strategy": "epoch",
+    "save_strategy": "epoch",
+    "save_total_limit": 2,
+    "load_best_model_at_end": true,
+    "metric_for_best_model": "rougeL",
+    "greater_is_better": true,
+    "early_stopping_patience": 2,
+    "logging_steps": 100
+  },
+  "generation_config": {
+    "max_summary_length": 700,
+    "num_beams": 4,
+    "length_penalty": 1.0,
+    "early_stopping": true,
+    "no_repeat_ngram_size": 3,
+    "do_sample": false,
+    "temperature": 1.0
+  },
+  "template_config": {
+    "use_template": true,
+    "template_sections": [
+      "patient_demographics",
+      "admission_discharge_dates",
+      "chief_complaint",
+      "medical_history",
+      "diagnosis",
+      "hospital_course",
+      "lab_results",
+      "medications",
+      "follow_up"
+    ],
+    "section_max_lengths": {
+      "patient_demographics": 30,
+      "admission_discharge_dates": 50,
+      "chief_complaint": 80,
+      "medical_history": 100,
+      "diagnosis": 100,
+      "hospital_course": 120,
+      "lab_results": 80,
+      "medications": 120,
+      "follow_up": 70
+    }
+  },
+  "evaluation_config": {
+    "metrics": ["rouge1", "rouge2", "rougeL", "bleu"],
+    "generate_samples": true,
+    "num_sample_summaries": 10,
+    "save_predictions": true,
+    "compute_bias_metrics": true,
+    "demographic_groups": ["age_group", "ethnicity_clean", "gender"]
+  },
+  "bias_detection_config": {
+    "enabled": true,
+    "slice_by": ["age_group", "ethnicity_clean", "gender"],
+    "min_samples_per_slice": 30,
+    "metrics_to_track": ["rougeL", "summary_length", "compression_ratio"],
+    "alert_threshold": 0.05,
+    "generate_bias_report": true
+  },
+  "mlflow_config": {
+    "tracking_enabled": true,
+    "log_parameters": true,
+    "log_metrics": true,
+    "log_model": true,
+    "log_artifacts": true,
+    "tags": {
+      "project": "lab-lens",
+      "model_type": "biobart",
+      "domain": "clinical",
+      "task": "summarization"
+    }
+  },
+  "deployment_config": {
+    "push_to_registry": false,
+    "registry_type": "gcp",
+    "registry_path": "gcr.io/PROJECT_ID/biobart-mimic-summarization",
+    "model_version": "v1.0",
+    "deployment_platform": "local"
+  }
+}
