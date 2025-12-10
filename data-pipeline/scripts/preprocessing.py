@@ -1,5 +1,6 @@
 # Data Preprocessing Pipeline for MIMIC-III Discharge Summaries
 # Description: Cleans and processes discharge summaries for ML pipeline
+# Run using: python data-pipeline/scripts/preprocessing.py
 
 import pandas as pd
 import numpy as np

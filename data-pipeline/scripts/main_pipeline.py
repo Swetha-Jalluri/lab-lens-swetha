@@ -1,3 +1,4 @@
+# Run with: python data-pipeline/scripts/main_pipeline.py
 """
 Main Pipeline Orchestrator for Lab Lens MIMIC-III Processing
 Author: Lab Lens Team

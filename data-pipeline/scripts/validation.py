@@ -1,7 +1,7 @@
 """
 Data Validation Pipeline for MIMIC-III Processed Data
-Author: Team Member 3
 Description: Validates data quality, integrity, and completeness with config-driven rules
+Run using: python data-pipeline/scripts/validation.py
 """
 
 import pandas as pd

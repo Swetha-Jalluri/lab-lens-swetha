@@ -1,6 +1,6 @@
+# Run with: python data-pipeline/scripts/bias_detection.py
 """
 Comprehensive Bias Detection Pipeline for MIMIC-III Data
-Author: Lab Lens Team
 Description: Advanced bias detection with statistical controls and quality analysis
 
 This module provides three levels of bias analysis:

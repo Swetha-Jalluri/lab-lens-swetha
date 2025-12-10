@@ -1,3 +1,4 @@
+# Run with: pytest tests/test_validation.py -v
 """
 Unit Tests for MIMIC Validation Pipeline
 Tests schema validation, data quality checks, and scoring

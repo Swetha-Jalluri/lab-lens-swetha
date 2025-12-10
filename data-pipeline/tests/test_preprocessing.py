@@ -1,3 +1,4 @@
+# Run with: pytest tests/test_preprocessing.py -v
 """
 Unit Tests for MIMIC Preprocessing Pipeline
 Tests data loading, duplicate removal, demographic standardization, and feature creation

@@ -1,3 +1,4 @@
+# Run with: pytest data-pipeline/tests/test_feature_engineering.py -v
 """
 Unit Tests for Feature Engineering Pipeline
 Tests readability scores, clinical features, medical density, and treatment complexity

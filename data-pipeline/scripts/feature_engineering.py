@@ -1,7 +1,7 @@
 """
 Feature Engineering Pipeline for MIMIC-III Discharge Summaries
-Author: Lab Lens Team
 Description: Creates advanced features from preprocessed clinical text data
+#Run using: python feature_engineering.py --input <input_csv> --output <output_csv> --log <log_file> [--with_sections]
 """
 
 import argparse

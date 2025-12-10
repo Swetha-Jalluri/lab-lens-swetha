@@ -1,3 +1,4 @@
+# Run with: python data-pipeline/scripts/automated_bias_handler.py
 """
 Intelligent Bias Mitigation Pipeline for MIMIC-III Data
 Author: Lab Lens Team
